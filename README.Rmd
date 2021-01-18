@@ -67,6 +67,8 @@ remotes::install_github('coolbutuseless/wingspan')
 Some of the stats for the 2 birds at the bottom of this image are shown below.
 
 ```{r example}
+library(ape)
+library(vegan)
 library(dplyr)
 library(wingspan)
 
@@ -76,6 +78,87 @@ wingspan::birds %>%
          egg_capacity, nest_type, total_food_cost) %>%
   knitr::kable()
 ```
+
+
+### Radial Dendrogram
+
+Thanks to [hbgoldspiel](https://twitter.com/hbgoldspiel) on twitter for this
+great dendogram grouping birds by their similarity.
+
+
+```{r}
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Replace NAs
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+birds2 <- birds %>%
+  tidyr::replace_na(list(
+    power_color    = 'None',
+    power_category = 'None',
+    nest_type      = 'Misc',
+    wingspan       = 0
+  ))
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Numeric matrix of traits
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+birds_mat <- as.data.frame(model.matrix(
+  lm(
+    victory_points ~ set + power_color + power_category + predator + 
+      flocking + bonus_card + nest_type + egg_capacity + wingspan + 
+      forest + grassland + wetland + invertebrate + seed + fish + fruit +
+      rodent + nectar + any_food - 1, data = birds2
+  )
+))
+
+rownames(birds_mat) <- birds$common_name
+birds_mat$points    <- birds$victory_points
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Calcualte Distance matrix
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+birds_norm <- vegan::decostand(birds_mat, "normalize")
+birds_ch   <- vegan::vegdist(birds_norm, 'euc')
+attr(birds_ch, 'labels') <- rownames(birds_mat)
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Compute Ward's minimumvariance clustering
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+birds_ch_ward <- hclust(birds_ch, method = 'ward.D2')
+```
+
+```{r eval=FALSE}
+plot(ape::as.phylo(birds_ch_ward), type = "fan", cex = 1)
+```
+
+
+
+```{r eval=FALSE, echo=FALSE}
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Plot
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+png("man/figures/phylo.png", width = 3000, height = 3000)
+plot(ape::as.phylo(birds_ch_ward), type = "fan", cex = 1)
+dev.off()
+
+cairo_pdf("man/figures/phylo.pdf", width = 30, height = 30)
+plot(ape::as.phylo(birds_ch_ward), type = "fan", cex = 1)
+dev.off()
+```
+
+
+<img src="man/figures/phylo.png" width="100%" />
+
+The full dendogram is huge, but a glimpse at detail below shows that
+flightless birds have been grouped together.  Also there's a grouping of 
+condors and vultures.
+
+<img src="man/figures/phylo-details.png" width="100%" />
+
+
+
+<a href="man/figures/phylo.pdf">Download PDF version of dendogram</a>
 
 
 ### Example Summary Plot
@@ -92,7 +175,6 @@ ggplot(birds, aes(as.factor(total_food_cost), victory_points)) +
     title = "Birds with higher total food cost score more victory points"
   ) + 
   scale_y_continuous(breaks = 0:10)
-
 ```
 
 
